@@ -165,7 +165,7 @@ def GetSeminars(driver, sendmail = False, condition = {}, mail_address = '',
             SendMail(mail_address, sender, passwd_mail, mail_content)
         time.sleep(time_sep)
         time_n = time.time()
-        if (t_load % int(300 / time_sep)) == 1:
+        if (t_load % int(180 / time_sep)) == 1:
             print("已运行 %d 秒， 尝试预约 %d 次， 已预约 %d 场讲座。"%(int(time_n - time_s), t_load, n_get) )
         # 刷新页面
         RefreshXmu(driver)
@@ -210,15 +210,18 @@ else:
         f = open("options.ini", "wb")
         f.write(str(op).encode())
         f.close()
+op["headless"] = True if input("隐藏浏览器(Y/N)?\n>>").upper() == "Y" else False
 t_delay = input("延迟运行时间(h):\n(立即运行请回车)\n>>")
 t_delay = 0 if t_delay == "" else float(t_delay)
 print("延迟%d秒后运行"%(t_delay * 3600))
 time.sleep(t_delay * 3600)
 try:
-    # options = webdriver.FirefoxOptions()
-    # options.add_argument('--headless')
-    # driver = webdriver.Firefox(options=options)
-    driver = webdriver.Firefox()
+    if op["headless"]:
+        op_driver = webdriver.FirefoxOptions()
+        op_driver.add_argument('--headless')
+        driver = webdriver.Firefox(options = op_driver)
+    else:
+        driver = webdriver.Firefox()
     LoginXmu(driver, op['stuid'], op['passwd'])
     GetSeminars(driver, sendmail = op["set_send"], condition = op["condition"],
                 mail_address = op["mail_address"], sender = op["sender"], 
@@ -228,3 +231,4 @@ try:
 except Exception as err:
     print("error: ", err)
 print("预约结束")
+
