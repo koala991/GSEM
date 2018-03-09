@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-# Version 0.0.2 添加延迟运行
+# Version 0.0.3 添加功能，修复bug，优化显示
 """
 Version:
 FireFox 57.0.4
@@ -14,11 +14,12 @@ selenium 3.9.0
 """
 
 
-import re, time, os, sys
+import re, time, sys, pdb
 from selenium import webdriver
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
+from selenium.common.exceptions import NoSuchElementException
 from retrying import retry
 import smtplib
 from email.mime.text import MIMEText
@@ -125,14 +126,21 @@ def GetSeminars(driver, sendmail = False, condition = {}, mail_address = '',
     n_get = 0
     time_s = time.time()
     while n_get < n_need:
+        time_n = time.time()
         t_load += 1
         # 变量初始化
         statu_get = False
         lec_id = []
         lec_detail = {}
         # 获取总讲座数
-        s_npage = driver.find_element_by_xpath("//div[@id='ctl00_MainContent_AspNetPager']").text
-        n_lec = int(re.search('共([0-9]+)条记录', s_npage).groups()[0])
+        try:
+            # pdb.set_trace()
+            s_npage = driver.find_element_by_xpath("//div[@id='ctl00_MainContent_AspNetPager']").text
+            n_lec = int(re.search('共([0-9]+)条记录', s_npage).groups()[0])
+        except NoSuchElementException:
+            printstatus("已运行 %d 秒,当前无讲座, %d 秒后继续尝试预约...."%(int(time_n - time_s),time_sep))
+            time.sleep(time_sep)
+            continue
         for lec in range(n_lec):
             lec_statu = driver.find_element_by_xpath \
             ("//span[@id='ctl00_MainContent_GridView1_ctl0%d_Label1']"%(lec+2)).text
@@ -164,14 +172,19 @@ def GetSeminars(driver, sendmail = False, condition = {}, mail_address = '',
             lec_detail["re_time"] + "请及时查看！"
             SendMail(mail_address, sender, passwd_mail, mail_content)
         time.sleep(time_sep)
-        time_n = time.time()
         if (t_load % int(180 / time_sep)) == 1:
-            print("已运行 %d 秒， 尝试预约 %d 次， 已预约 %d 场讲座。"%(int(time_n - time_s), t_load, n_get) )
+            printstatus("已运行 %d 秒， 尝试预约 %d 次， 已预约 %d 场讲座。"%(int(time_n - time_s), t_load, n_get) )
         # 刷新页面
         RefreshXmu(driver)
         # 此处没有讲座时需要一个处理
     else:
         print("完成任务")
+
+def printstatus(t_n):
+    # 覆盖打印最新信息的函数
+    sys.stdout.write('\r')
+    sys.stdout.write(t_n)
+    sys.stdout.flush()
 
 
             
@@ -186,7 +199,7 @@ if set_load.upper() == "Y":
     f = open("options.ini", "r")
     op = eval(f.read())
     f.close()
-    print("Load options", str(op))
+    print("加载配置")
 else:
     op["stuid"] = input("请输入学号:\n>>")
     op["passwd"] = input("请输入密码:\n>>")
@@ -211,18 +224,25 @@ else:
         f.write(str(op).encode())
         f.close()
 op["headless"] = True if input("隐藏浏览器(Y/N)?\n>>").upper() == "Y" else False
-t_delay = input("延迟运行时间(h):\n(立即运行请回车)\n>>")
-t_delay = 0 if t_delay == "" else float(t_delay)
-print("延迟%d秒后运行"%(t_delay * 3600))
-time.sleep(t_delay * 3600)
+t_delay = input("延迟运行时间(s):\n(立即运行请回车)\n>>")
+t_delay = 0 if t_delay == "" else int(t_delay)
+while t_delay > 0:
+    printstatus("延迟%d秒后运行"%t_delay)
+    time.sleep(10)
+    t_delay -= 10
+print("开始运行")
+
 try:
+    printstatus("正在打开浏览器....")
     if op["headless"]:
         op_driver = webdriver.FirefoxOptions()
         op_driver.add_argument('--headless')
         driver = webdriver.Firefox(options = op_driver)
     else:
         driver = webdriver.Firefox()
+    printstatus("正在登录预约系统....")
     LoginXmu(driver, op['stuid'], op['passwd'])
+    printstatus("开始尝试预约....");print()
     GetSeminars(driver, sendmail = op["set_send"], condition = op["condition"],
                 mail_address = op["mail_address"], sender = op["sender"], 
                 passwd_mail = op["passwd_mail"], n_need = op["need"],
