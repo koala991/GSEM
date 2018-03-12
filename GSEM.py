@@ -24,8 +24,6 @@ from retrying import retry
 import smtplib
 from email.mime.text import MIMEText
 from email.header import Header
- 
-
 
 
 def LoginXmu(driver, user, passwd):
@@ -38,8 +36,9 @@ def LoginXmu(driver, user, passwd):
         WebDriverWait(driver, 20).until(EC.text_to_be_present_in_element( \
                      (By.XPATH,"//div[@id='default-main']//legend"), "Seminars available for reservation:"))
     except Exception:
-        print("登陆失败，请检查网络状态或账户密码")
-    return
+        print("登陆失败啦，请检查网络状态或账户密码后重启本程序0。0")
+        return False
+    return True
 
 
 
@@ -53,19 +52,23 @@ def RefreshXmu(driver):
 
 
 
-def ReserveSeminar(deriver, s_id):
+def ReserveSeminar(driver, s_id):
     # 根据id号选取讲座直至成功或失败
+    print("测试信息:s_id="+str(s_id))
     get = False
     t = 0
-    while (not get | t <20):
+    while (not get | t < 5):
+        print("测试信息：点击预约项")
         driver.find_element_by_xpath \
         ("//a[@id='ctl00_MainContent_GridView1_ctl%s_btnreceive']"%s_id).click()
         try:
-            WebDriverWait(driver, 5).until(EC.alert_is_present())
+            WebDriverWait(driver, 10).until(EC.alert_is_present())
         except Exception:
+            print("测试信息：预约超时")
             t += 1
             pass
         else:
+            print("测试信息：确认预约")
             driver.switch_to_alert().accept()
             get = True
             break
@@ -75,7 +78,8 @@ def ReserveSeminar(deriver, s_id):
 
 def ScreenLec(driver, ids_lec, condition):
     # 输入可选讲座ids和条件，返回第一个符合条件的讲座的详情字典，若无符合条件则返回空字典
-    # 条件目前仅一个最小退订时间
+    # 
+    print("测试信息:ids="+str(ids_lec))
     for l in ids_lec:
         l_time = driver.find_element_by_xpath("//span[@id='ctl00_MainContent_GridView1_ctl%s_orderendtime']"%l).text
         l_time = time.mktime(time.strptime(l_time,"%Y-%m-%d %H:%M:%S"))
@@ -112,12 +116,16 @@ def SendMail(mail_address, sender, passwd, content):
         smtpObj = smtplib.SMTP_SSL(mail_host, 465) 
         smtpObj.login(mail_user,mail_pass)  
         smtpObj.sendmail(sender, receivers, message.as_string())
-        print("邮件发送成功")
+        print("邮件发送成功> <")
     except smtplib.SMTPException:
-        print("Error: 无法发送邮件")
+        print("Error: 无法发送邮件-.-")
         return
 
-
+def printstatus(t_n):
+    # 覆盖打印最新信息的函数
+    sys.stdout.write('\r')
+    sys.stdout.write(t_n)
+    sys.stdout.flush()
 
 def GetSeminars(driver, sendmail = False, condition = {}, mail_address = '',
                 sender = '', passwd_mail = '', n_need = 1, time_sep = 1):
@@ -138,7 +146,7 @@ def GetSeminars(driver, sendmail = False, condition = {}, mail_address = '',
             s_npage = driver.find_element_by_xpath("//div[@id='ctl00_MainContent_AspNetPager']").text
             n_lec = int(re.search('共([0-9]+)条记录', s_npage).groups()[0])
         except NoSuchElementException:
-            printstatus("已运行 %d 秒,当前无讲座, %d 秒后继续尝试预约...."%(int(time_n - time_s),time_sep))
+            printstatus("已运行 %d 秒,当前无讲座, %d 秒后继续尝试预约....TAT"%(int(time_n - time_s),time_sep))
             time.sleep(time_sep)
             continue
         for lec in range(n_lec):
@@ -163,29 +171,26 @@ def GetSeminars(driver, sendmail = False, condition = {}, mail_address = '',
         
         if len(lec_detail) > 0:
             # 将符合条件的讲座id输入函数，对讲座进行选取，并返回选取状态
+            print("发现符合条件的讲座，尝试捕捉....")
             statu_get = ReserveSeminar(driver, lec_detail['id'])
         n_get = n_get + statu_get        
+        if statu_get:
+            print("成功捕获讲座，共已捕获讲座%d个"%n_get)
         if statu_get & sendmail:
             # 若抢到讲座，则邮件通知，并附上详情
+            print("开始发送报喜邮件....")
             # 构造邮件
             mail_content = "已成功预约讲座<" + lec_detail["name"] + ">，最后退订时间为" + \
             lec_detail["re_time"] + "请及时查看！"
             SendMail(mail_address, sender, passwd_mail, mail_content)
         time.sleep(time_sep)
-        if (t_load % int(180 / time_sep)) == 1:
-            printstatus("已运行 %d 秒， 尝试预约 %d 次， 已预约 %d 场讲座。"%(int(time_n - time_s), t_load, n_get) )
+        if (t_load % max(int(30 / time_sep), 1)) == 1:
+            printstatus("已运行 %d 秒， 尝试预约 %d 次， 已预约 %d 场讲座O*O"%(int(time_n - time_s), t_load, n_get) )
         # 刷新页面
         RefreshXmu(driver)
         # 此处没有讲座时需要一个处理
     else:
         print("完成任务")
-
-def printstatus(t_n):
-    # 覆盖打印最新信息的函数
-    sys.stdout.write('\r')
-    sys.stdout.write(t_n)
-    sys.stdout.flush()
-
 
             
             
@@ -241,7 +246,9 @@ try:
     else:
         driver = webdriver.Firefox()
     printstatus("正在登录预约系统....")
-    LoginXmu(driver, op['stuid'], op['passwd'])
+    statu_log = LoginXmu(driver, op['stuid'], op['passwd'])
+    if not statu_log:
+        raise Exception("登陆异常")
     printstatus("开始尝试预约....");print()
     GetSeminars(driver, sendmail = op["set_send"], condition = op["condition"],
                 mail_address = op["mail_address"], sender = op["sender"], 
