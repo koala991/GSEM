@@ -1,16 +1,10 @@
 # -*- coding: utf-8 -*-
-# Version 0.0.3 添加功能，修复bug，优化显示
+# Version 0.0.5 修正错误，成功运行版
 """
 Version:
 FireFox 57.0.4
 geckodriver-v0.19.1-win64
 selenium 3.9.0
-"""
-
-"""
-未完成项
-1.根据条件进一步筛选讲座
-2.邮件通知
 """
 
 
@@ -54,21 +48,23 @@ def RefreshXmu(driver):
 
 def ReserveSeminar(driver, s_id):
     # 根据id号选取讲座直至成功或失败
-    print("测试信息:s_id="+str(s_id))
+    # print("测试信息:s_id="+str(s_id))
     get = False
     t = 0
-    while (not get | t < 5):
-        print("测试信息：点击预约项")
+    while ((not get) | t < 5):
+        # print("测试信息：点击预约项")
         driver.find_element_by_xpath \
         ("//a[@id='ctl00_MainContent_GridView1_ctl%s_btnreceive']"%s_id).click()
+        
         try:
+            print("等待预约....")
             WebDriverWait(driver, 10).until(EC.alert_is_present())
         except Exception:
-            print("测试信息：预约超时")
+            print("预约超时TUT")
             t += 1
             pass
         else:
-            print("测试信息：确认预约")
+            print("确认预约>@<!")
             driver.switch_to_alert().accept()
             get = True
             break
@@ -78,8 +74,7 @@ def ReserveSeminar(driver, s_id):
 
 def ScreenLec(driver, ids_lec, condition):
     # 输入可选讲座ids和条件，返回第一个符合条件的讲座的详情字典，若无符合条件则返回空字典
-    # 
-    print("测试信息:ids="+str(ids_lec))
+    # print("测试信息:ids="+str(ids_lec))
     for l in ids_lec:
         l_time = driver.find_element_by_xpath("//span[@id='ctl00_MainContent_GridView1_ctl%s_orderendtime']"%l).text
         l_time = time.mktime(time.strptime(l_time,"%Y-%m-%d %H:%M:%S"))
@@ -110,7 +105,7 @@ def SendMail(mail_address, sender, passwd, content):
     message = MIMEText(content, 'plain', 'utf-8')
     message['From'] = Header(sender, 'utf-8')
     message['To'] =  Header(mail_address, 'utf-8')
-    subject = "讲座成功选取提醒"
+    subject = "关于成功捕获野生讲座的战报"
     message['Subject'] = Header(subject, 'utf-8')
     try:
         smtpObj = smtplib.SMTP_SSL(mail_host, 465) 
@@ -130,6 +125,7 @@ def printstatus(t_n):
 def GetSeminars(driver, sendmail = False, condition = {}, mail_address = '',
                 sender = '', passwd_mail = '', n_need = 1, time_sep = 1):
     # 根据条件选取足够数量的的讲座
+    # pdb.set_trace()
     t_load = 0
     n_get = 0
     time_s = time.time()
@@ -156,9 +152,14 @@ def GetSeminars(driver, sendmail = False, condition = {}, mail_address = '',
                 pass
             elif '预约中' in lec_statu:
                 try:
-                    driver.find_element_by_xpath("//a[@id='ctl00_MainContent_GridView1_ctl%d_btnreceive']"%(lec+2))
+                    f = open('souce.html', "wb")
+                    f.write(driver.page_source.encode())
+                    f.close()
+                    # print("测试信息：发现预约中讲座")
+                    driver.find_element_by_xpath("//a[@id='ctl00_MainContent_GridView1_ctl0%d_btnreceive']"%(lec+2))
                 except Exception as err:
                     # print(err)
+                    # print("测试信息:发现讲座预约中，但不可预约")
                     pass
                 else:
                     lec_id.append('0%d'%(lec+2))
@@ -167,18 +168,19 @@ def GetSeminars(driver, sendmail = False, condition = {}, mail_address = '',
         
         if len(lec_id) > 0:
             # 将可预约的讲座输入判定函数，返回第一个符合条件的讲座的详情
+            # print("测试信息：进入再筛选")
             lec_detail = ScreenLec(driver, lec_id, condition)                
         
         if len(lec_detail) > 0:
             # 将符合条件的讲座id输入函数，对讲座进行选取，并返回选取状态
-            print("发现符合条件的讲座，尝试捕捉....")
+            print("野生的讲座跳了出来！尝试捕捉....")
             statu_get = ReserveSeminar(driver, lec_detail['id'])
         n_get = n_get + statu_get        
         if statu_get:
             print("成功捕获讲座，共已捕获讲座%d个"%n_get)
         if statu_get & sendmail:
             # 若抢到讲座，则邮件通知，并附上详情
-            print("开始发送报喜邮件....")
+            print("开始发送战报....")
             # 构造邮件
             mail_content = "已成功预约讲座<" + lec_detail["name"] + ">，最后退订时间为" + \
             lec_detail["re_time"] + "请及时查看！"
