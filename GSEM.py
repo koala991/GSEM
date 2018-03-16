@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-# Version 0.0.5 修正错误，成功运行版
+# Version 0.0.51 bug fixed
 """
 Version:
 FireFox 57.0.4
@@ -152,9 +152,9 @@ def GetSeminars(driver, sendmail = False, condition = {}, mail_address = '',
                 pass
             elif '预约中' in lec_statu:
                 try:
-                    f = open('souce.html', "wb")
-                    f.write(driver.page_source.encode())
-                    f.close()
+                    # f = open('souce.html', "wb")
+                    # f.write(driver.page_source.encode())
+                    # f.close()
                     # print("测试信息：发现预约中讲座")
                     driver.find_element_by_xpath("//a[@id='ctl00_MainContent_GridView1_ctl0%d_btnreceive']"%(lec+2))
                 except Exception as err:
